@@ -1,0 +1,10 @@
+{
+  "name": "elderly-care-monitor",
+  "version": "1.0.0",
+  "description": "Elderly Care Monitoring System",
+  "main": "server.py",
+  "scripts": {
+    "start": "start http://127.0.0.1:8000 & venv\\Scripts\\python.exe -m uvicorn server:app --host 127.0.0.1 --port 8000 --reload",
+    "dev": "start http://127.0.0.1:8000 & venv\\Scripts\\python.exe -m uvicorn server:app --host 127.0.0.1 --port 8000 --reload"
+  }
+}

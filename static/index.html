@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elderly Care Monitoring System (ECMS) - Live Dashboard</title>
+    
+    <!-- Google Fonts: Outfit & Inter for ultra-clean modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet CSS for Map & Geo-fencing -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <!-- Chart.js for Health Trends -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="theme-dark">
+    <!-- Top Persistent Navigation Bar -->
+    <header class="navbar">
+        <div class="nav-brand">
+            <div class="brand-logo">
+                <span class="heart-pulse-icon">❤️</span>
+            </div>
+            <div>
+                <h1 class="brand-title">ECMS <span>CarePortal</span></h1>
+                <p class="brand-subtitle">Elderly Care & Emergency Fall Monitoring System</p>
+            </div>
+        </div>
+
+        <div class="nav-controls">
+            <!-- Role-Based View Switcher -->
+            <div class="role-selector-wrap">
+                <label for="roleSelector">Current View:</label>
+                <select id="roleSelector" onchange="switchRole(this.value)">
+                    <option value="doctor">👨‍⚕️ Dr. Arvind Sharma (Doctor)</option>
+                    <option value="caregiver" selected>🏠 Priya K (Family Caregiver)</option>
+                    <option value="admin">⚙️ Kathiravan A (Administrator)</option>
+                </select>
+            </div>
+
+            <!-- WebSocket Connection Status Indicator -->
+            <div id="connectionPill" class="status-pill status-connecting">
+                <span class="dot"></span>
+                <span id="connStatusText">Connecting...</span>
+            </div>
+
+            <!-- Sound Alert Toggle -->
+            <button id="soundToggleBtn" class="btn btn-outline" onclick="toggleAudio()" title="Toggle Emergency Siren Sound">
+                🔊 Audio Alerts: ON
+            </button>
+        </div>
+    </header>
+
+    <div class="app-layout">
+        <!-- Main Dashboard Viewport -->
+        <main class="dashboard-content">
+            <!-- Patient Banner Card -->
+            <section class="patient-card">
+                <div class="patient-avatar-box">
+                    <div class="patient-avatar">👴</div>
+                    <div>
+                        <div class="patient-title-row">
+                            <h2 id="patientName">Robert Jenkins</h2>
+                            <span class="badge badge-age" id="patientAge">Age: 78</span>
+                            <span id="patientStatusBadge" class="badge badge-normal">Status: Normal</span>
+                        </div>
+                        <p class="patient-history" id="patientHistory">Conditions: Hypertension, Mild Cardiac Arrhythmia, Osteoporosis</p>
+                    </div>
+                </div>
+
+                <div class="patient-quick-stats">
+                    <div class="stat-pill">
+                        <span class="label">Emergency Contact:</span>
+                        <strong id="patientEmergencyContact">+91-9876500003 (Priya K)</strong>
+                    </div>
+                    <div class="stat-pill">
+                        <span class="label">Last Ingested Sync:</span>
+                        <strong id="lastSyncTime">Waiting for data...</strong>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="openThresholdModal()">⚙️ Threshold Settings</button>
+                </div>
+            </section>
+
+            <!-- Real-Time Metric Telemetry Cards Grid -->
+            <section class="metrics-grid">
+                <!-- Heart Rate Widget -->
+                <div class="metric-card" id="cardHeartRate">
+                    <div class="metric-header">
+                        <span class="metric-title">Heart Rate (HR)</span>
+                        <span class="card-icon heart-icon">💓</span>
+                    </div>
+                    <div class="metric-body">
+                        <span class="metric-value" id="valHeartRate">72</span>
+                        <span class="metric-unit">bpm</span>
+                    </div>
+                    <div class="metric-footer">
+                        <span class="threshold-tag" id="hrThresholdText">Safe Range: 55 - 105 bpm</span>
+                        <span class="badge badge-success" id="hrStatus">Normal</span>
+                    </div>
+                </div>
+
+                <!-- SpO2 Oxygen Widget -->
+                <div class="metric-card" id="cardSpO2">
+                    <div class="metric-header">
+                        <span class="metric-title">Blood Oxygen (SpO2)</span>
+                        <span class="card-icon">🫁</span>
+                    </div>
+                    <div class="metric-body">
+                        <span class="metric-value" id="valSpO2">98.0</span>
+                        <span class="metric-unit">%</span>
+                    </div>
+                    <div class="metric-footer">
+                        <span class="threshold-tag" id="spo2ThresholdText">Safe: &ge; 92.0%</span>
+                        <span class="badge badge-success" id="spo2Status">Optimal</span>
+                    </div>
+                </div>
+
+                <!-- Body Temperature Widget -->
+                <div class="metric-card" id="cardTemp">
+                    <div class="metric-header">
+                        <span class="metric-title">Body Temperature</span>
+                        <span class="card-icon">🌡️</span>
+                    </div>
+                    <div class="metric-body">
+                        <span class="metric-value" id="valTemp">36.6</span>
+                        <span class="metric-unit">°C</span>
+                    </div>
+                    <div class="metric-footer">
+                        <span class="threshold-tag">Range: 36.0 - 37.8 °C</span>
+                        <span class="badge badge-success" id="tempStatus">Normal</span>
+                    </div>
+                </div>
+
+                <!-- Daily Steps & Motion Vector Widget -->
+                <div class="metric-card" id="cardMotion">
+                    <div class="metric-header">
+                        <span class="metric-title">Activity & Deceleration</span>
+                        <span class="card-icon">🏃</span>
+                    </div>
+                    <div class="metric-body">
+                        <span class="metric-value" id="valMotion">0.98</span>
+                        <span class="metric-unit">g force</span>
+                    </div>
+                    <div class="metric-footer">
+                        <span class="threshold-tag">Steps: <strong id="valSteps">2,600</strong></span>
+                        <span class="badge badge-success" id="motionStatus">Steady</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Middle Split: Real-Time Charts & Geo-Fence Map -->
+            <section class="visuals-split">
+                <!-- Real-Time Trend Charts -->
+                <div class="panel-card chart-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3 class="panel-title">Real-Time Vitals Trend</h3>
+                            <p class="panel-subtitle">Streaming time-series telemetry (Heart Rate & SpO2)</p>
+                        </div>
+                        <span class="live-dot-tag"><span class="pulse-dot"></span> LIVE STREAM</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="vitalsChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Live GPS & Geo-Fencing Map -->
+                <div class="panel-card map-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3 class="panel-title">Live GPS & Geo-Fence Tracker</h3>
+                            <p class="panel-subtitle">Monitors senior within authorized safe radius</p>
+                        </div>
+                        <div id="geofenceStatusPill" class="status-pill status-safe">
+                            <span class="dot"></span>
+                            <span id="geofenceText">Safe in Zone</span>
+                        </div>
+                    </div>
+                    <div id="mapContainer" class="map-container"></div>
+                    <div class="map-info-bar">
+                        <span>Lat: <strong id="mapLat">11.0168° N</strong>, Lng: <strong id="mapLng">76.9558° E</strong></span>
+                        <span>Safe Perimeter: <strong id="mapRadius">250 meters</strong></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Bottom Split: Incident Action Tracker & Emergency Notification Dispatch Log -->
+            <section class="tracker-split">
+                <!-- Incident Action Tracker -->
+                <div class="panel-card incident-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3 class="panel-title">Incident Action Tracker</h3>
+                            <p class="panel-subtitle">Clinical resolution logs, alarms, and doctor sign-offs</p>
+                        </div>
+                        <button class="btn btn-outline btn-sm" onclick="loadIncidentAlerts()">Refresh Alerts</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Alert Type</th>
+                                    <th>Severity</th>
+                                    <th>Message</th>
+                                    <th>Status</th>
+                                    <th>Doctor Resolution</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="incidentTableBody">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">Loading incident records...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Automated Multi-Channel Emergency Dispatcher Log -->
+                <div class="panel-card dispatcher-panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3 class="panel-title">Emergency Dispatcher Log</h3>
+                            <p class="panel-subtitle">Automated multi-channel alerts (SMS, Email, Push)</p>
+                        </div>
+                        <span class="badge badge-warning">REQ-10 Automated Dispatch</span>
+                    </div>
+                    <div class="dispatch-list" id="dispatchLogList">
+                        <div class="empty-state">No emergency dispatches issued yet. System running in safe baseline.</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Fixed Wearable Sensor Simulator Bar (Crucial for Demo/Lab Viva!) -->
+        <footer class="simulator-bar">
+            <div class="sim-header">
+                <div class="sim-title">
+                    <span class="sim-badge">WEARABLE SENSOR SIMULATOR</span>
+                    <span class="sim-desc">Simulate live patient telemetry to test SRS triggers:</span>
+                </div>
+                <div class="sim-actions">
+                    <button id="autoStreamBtn" class="btn btn-simulator btn-stream" onclick="toggleAutoStream()">
+                        ▶ Start Auto Stream
+                    </button>
+                    <button class="btn btn-simulator btn-fall" onclick="triggerFallSimulation()">
+                        🚨 Simulate Fall Impact (>3.2g)
+                    </button>
+                    <button class="btn btn-simulator btn-tachy" onclick="simulateTachycardia()">
+                        📈 Tachycardia (135 bpm)
+                    </button>
+                    <button class="btn btn-simulator btn-spo2" onclick="simulateLowSpO2()">
+                        📉 Hypoxemia (84% SpO2)
+                    </button>
+                    <button class="btn btn-simulator btn-wander" onclick="simulateGeofenceBreach()">
+                        🚶 Wander Out of Zone
+                    </button>
+                    <button class="btn btn-simulator btn-reset" onclick="resetToNormal()">
+                        🔄 Reset All to Normal
+                    </button>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- HIGH-VISIBILITY 15-SECOND FALL SAFEGUARD COUNTDOWN MODAL (REQ-6, 7, 8) -->
+    <div id="fallCountdownModal" class="modal-backdrop hidden">
+        <div class="modal-card emergency-modal">
+            <div class="modal-banner">
+                <span class="siren-icon">⚠️</span>
+                <h2>FALL IMPACT DETECTED!</h2>
+                <p>Software-based 15-second verification safeguard active</p>
+            </div>
+
+            <div class="countdown-circle-wrap">
+                <svg class="countdown-svg" viewBox="0 0 100 100">
+                    <circle class="countdown-bg" cx="50" cy="50" r="45"></circle>
+                    <circle id="countdownStroke" class="countdown-progress" cx="50" cy="50" r="45"></circle>
+                </svg>
+                <div class="countdown-number" id="countdownNumber">15</div>
+            </div>
+
+            <div class="countdown-details">
+                <p class="countdown-notice">
+                    High deceleration motion vector detected on senior tracker.
+                    If this is an accidental drop or false alarm, please tap below immediately.
+                </p>
+                <div class="countdown-warning-box">
+                    <span>⏳ Automated Emergency Dispatch (SMS, Email, Push) to contacts triggers when timer reaches 0.</span>
+                </div>
+            </div>
+
+            <div class="modal-footer-emergency">
+                <button class="btn btn-cancel-alert" onclick="cancelActiveAlert()">
+                    🛡️ I AM OK — CANCEL ALERT (FALSE ALARM)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Threshold Configuration Modal (Appendix B / Doctor Settings) -->
+    <div id="thresholdModal" class="modal-backdrop hidden">
+        <div class="modal-card config-modal">
+            <div class="modal-header">
+                <h3>⚙️ Patient Threshold & Safety Configuration</h3>
+                <button class="modal-close" onclick="closeThresholdModal()">&times;</button>
+            </div>
+            <form id="thresholdForm" onsubmit="saveThresholds(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Min Heart Rate (bpm):</label>
+                        <input type="number" id="inputMinHr" required min="30" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Max Heart Rate (bpm):</label>
+                        <input type="number" id="inputMaxHr" required min="90" max="220">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Min SpO2 Oxygen (%):</label>
+                        <input type="number" step="0.5" id="inputMinSpO2" required min="70" max="99">
+                    </div>
+                    <div class="form-group">
+                        <label>Geo-Fence Radius (meters):</label>
+                        <input type="number" id="inputRadius" required min="50" max="5000">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Safe Latitude Center:</label>
+                        <input type="number" step="0.0001" id="inputSafeLat" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Safe Longitude Center:</label>
+                        <input type="number" step="0.0001" id="inputSafeLng" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeThresholdModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Thresholds</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Doctor Incident Resolution Modal -->
+    <div id="resolveModal" class="modal-backdrop hidden">
+        <div class="modal-card resolve-modal">
+            <div class="modal-header">
+                <h3>🩺 Doctor Clinical Resolution Log</h3>
+                <button class="modal-close" onclick="closeResolveModal()">&times;</button>
+            </div>
+            <form id="resolveForm" onsubmit="submitIncidentResolution(event)">
+                <input type="hidden" id="resolveAlertId">
+                <p class="resolve-desc">Provide medical feedback and clinical intervention details. Once submitted, this incident will transition to <strong>Resolved</strong> and become permanently locked.</p>
+                
+                <div class="form-group">
+                    <label>Clinical Notes / Resolution Summary:</label>
+                    <textarea id="doctorNotesInput" rows="4" placeholder="e.g., Contacted patient via telemedicine; patient confirmed safe after minor slip. Resting HR stabilized at 72 bpm. Medication reviewed." required></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeResolveModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">Mark Incident Resolved & Lock</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
